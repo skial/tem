@@ -81,7 +81,7 @@ class Tem {
 
 class TemMacro {
 	
-	#if macro
+	#if neko
 	public static var html:DOMCollection = null;
 	
 	public static function handler(cls:ClassType, fields:Array<Field>):Array<Field> {
