@@ -1,0 +1,16 @@
+{
+  "name": "tem",
+  "license": "MIT",
+  "classPath": "src",
+  "tags": ["tem", "uhu", "js", "css"],
+  "description": "HTML, CSS and Haxe",
+  "contributors": ["skial"],
+  "releasenote": "Initial Release",
+  "version": "0.0.1-alpha",
+  "url": "https://github.com/skial/tem",
+  "dependencies": {
+    "uhu": "",
+    "detox": "",
+    "selecthxml": "",
+  }
+}
