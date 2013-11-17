@@ -25,11 +25,17 @@ using uhu.macro.Jumla;
 class Tem {
 	
 	public static macro function setIndex(path:String):Void {
-		if (!Handler.setup) {
-			Handler.initalize();
+		try {
+			if (!Handler.setup) {
+				Handler.initalize();
+			}
+			
+			Handler.CLASS_META.set(':tem', TemMacro.handler);
+		} catch (e:Dynamic) {
+			// This assumes that `implements Klas` is not being used
+			// but `@:autoBuild` or `@:build` metadata using the provided
+			// `uhx.macro.Tem.build()` method.
 		}
-		
-		Handler.CLASS_META.set(':tem', TemMacro.handler);
 		
 		path = Context.resolvePath( path ).fullPath();
 		var process:Process = new Process('tidy.exe', ['-i', '-q', '-asxml', '--doctype', 'omit', path]);
