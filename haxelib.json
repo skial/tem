@@ -9,8 +9,8 @@
   "version": "0.0.1-alpha",
   "url": "https://github.com/skial/tem",
   "dependencies": {
-    "uhu": "",
     "detox": "",
+    "uhu": "",
     "selecthxml": ""
   }
 }
