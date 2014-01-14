@@ -8,7 +8,7 @@ import haxe.macro.Context;
 import sys.io.Process;
 import uhx.tem.Parser;
 import uhx.macro.help.TemCommon;
-import uhx.macro.klas.Handler;
+import uhx.macro.KlasImpl;
 
 using Xml;
 using Detox;
@@ -26,11 +26,11 @@ class Tem {
 	
 	private static macro function initialize():Void {
 		try {
-			if (!Handler.setup) {
-				Handler.initalize();
+			if (!KlasImpl.setup) {
+				KlasImpl.initalize();
 			}
 			
-			Handler.CLASS_META.set(':tem', TemMacro.handler);
+			KlasImpl.CLASS_META.set(':tem', TemMacro.handler);
 		} catch (e:Dynamic) {
 			// This assumes that `implements Klas` is not being used
 			// but `@:autoBuild` or `@:build` metadata is being used 
