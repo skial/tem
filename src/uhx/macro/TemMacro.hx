@@ -6,7 +6,7 @@ import haxe.macro.Type;
 import haxe.macro.Expr;
 import haxe.macro.Context;
 import sys.io.Process;
-import uhx.macro.KlasImpl;
+import uhx.macro.KlasImp;
 import uhx.tem.Parser;
 import uhx.macro.help.TemCommon;
 
