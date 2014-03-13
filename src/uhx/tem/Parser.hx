@@ -6,7 +6,7 @@ import uhx.tem.help.TemHelp;
 import haxe.macro.Type;
 import haxe.macro.Expr;
 import haxe.macro.Context;
-import uhx.macro.help.Hijacked;
+//import uhx.macro.help.Hijacked;
 import uhx.macro.help.TemCommon;
 import haxe.macro.ComplexTypeTools;
 #end
@@ -16,8 +16,9 @@ using Detox;
 using Lambda;
 using StringTools;
 #if macro
-using uhu.macro.Jumla;
+//using uhu.macro.Jumla;
 using haxe.macro.Context;
+using haxe.macro.Tools;
 #end
 
 typedef Fields = #if macro Array<Field> #else Array<String> #end;
@@ -45,10 +46,15 @@ class Parser {
 			if (!child) {
 				
 				var local = Context.getLocalClass().get();
-				var ttype = local.path().getType().follow();
+				//var ttype = local.path().getType().follow();
+				var tpath = { pack: local.pack, name: local.name };
+				var ttype = local.pack.toDotPath(local.name).getType().follow();
 				var ctype = ttype.toComplexType();
 				
-				TemCommon.TemPlateExprs.push( { expr: ENew( std.Type.enumParameters(ctype)[0], [ macro @:fragment Detox.find( $v { '.' + name } ) ] ), pos: cls.pos } );
+				if (fields.exists( function(f) return f.name == 'new' )) {
+					//TemCommon.TemPlateExprs.push( { expr: ENew( std.Type.enumParameters(ctype)[0], [ macro @:fragment Detox.find( $v { '.' + name } ) ] ), pos: cls.pos } );
+					TemCommon.TemPlateExprs.push( macro new $tpath(@:fragment Detox.find($v { '.' + name } )) );
+				}
 			}
 			#end
 			
@@ -92,11 +98,12 @@ class Parser {
 	private static function setterExpr(type:Type):Expr {
 		var pos = Context.currentPos();
 		var result:Expr = Context.parse( 'uhx.tem.help.TemHelp.toDefault', pos );
+		var iterable = 'Iterable'.getType();
 		
 		switch ( type.follow() ) {
 			case TInst(t, p):
 				switch( t.get().name ) {
-					case 'Array' | _ if (type.isIterable() && p[0] != null):
+					case 'Array' | _ if (type.unify( iterable ) && p[0] != null):
 						result = setterExpr( p[0] );
 					
 					case _ if (TemHelp.toMap.exists( t.get().name )):
@@ -110,7 +117,7 @@ class Parser {
 				var abst = t.get();
 				
 				switch (abst.name) {
-					case _ if (abst.type.isIterable() && p[0] != null):
+					case _ if (abst.type.unify( iterable ) && p[0] != null):
 						result = setterExpr( p[0] );
 					
 					case _ if (TemHelp.toMap.exists( abst.name )):
@@ -130,21 +137,22 @@ class Parser {
 	}
 	
 	public static function processDOM(name:String, ele:DOMNode, attribute:Bool = false) {
-		
-		if (fields.exists( name )) {
-			var field = fields.get( name );
+		if (fields.exists( function(f) return f.name == name )) {
+			var field = fields.filter( function(f) return f.name == name )[0];
+			var isStatic = field.access.indexOf( AStatic ) > -1;
 			var prefix = attribute ? 'TEMATTR' : 'TEMDOM';
 			var domName = '${prefix}_$name';
 			var attName = (attribute?'':'data-') + name;
 			var pos = Context.currentPos();
+			var iterable = 'Iterable'.getType();
 			
 			switch (field.kind) {
 				case FVar(t, e):
 					
 					var type = t.toType();
 					
-					if (type.isIterable()) {
-						field.meta.push( 'isIterable'.mkMeta() );
+					if (type.unify( iterable )) {
+						/*field.meta.push( 'isIterable'.mkMeta() );
 						switch ( type ) {
 							case TInst(_t, _p):
 								
@@ -181,48 +189,72 @@ class Parser {
 								
 							case _:
 								
-						}
+						}*/
 						
 					}
 					
-					field.toFProp('default', 'set', t, e);
-					
 					var types = [];
-					var type = field.typeof().reduce();
 					while (true) {
 						
 						types.push( macro $v { type.follow().getName().split('.').pop() } );
-						if (type.params().length > 0) {
-							type = type.params()[0];
+						var params = params(type);
+						
+						if (params.length > 0) {
+							type = params[0];
 						} else {
 							break;
 						}
 						
 					}
 					
-					//field.meta.push( { name: 'type', params: [macro $v { field.typeof().reduce().follow().getName().split('.').pop() } ], pos: field.pos } );
 					field.meta.push( { name: 'type', params: types, pos: field.pos } );
 					
-					var call = Context.parse('uhx.tem.help.TemHelp.set' + (field.typeof().isIterable() ? 'Collection' : 'Individual'), pos);
-					fields.push( field.mkSetter( macro { 
-						$i { name } = v; 
-						$call( v, $i { domName }, $e{ setterExpr( t.toType() ) }, $v { attribute? attName :null } );
-						return v; } 
-					) );
-					
-					fields.push( 
-						domName.mkField()
-						.mkPublic()
-						.toFProp( 'get', 'null', macro: dtx.DOMNode )
-						.addMeta( ':isVar'.mkMeta() )
-					);
-					
-					fields.push( fields.get( domName ).mkGetter( macro {
-						if ($i { domName } == null) {
-							$i { domName } = dtx.collection.Traversing.find($i { TemCommon.TemDOM.name }, '[$attName]').getNode();
+					if (!isStatic) {
+						
+						field.kind = FProp('default', 'set', t, e);
+						
+						var call = Context.parse('uhx.tem.help.TemHelp.set' + (type.unify( iterable ) ? 'Collection' : 'Individual'), pos);
+						var setter = 'set_${field.name}', getter = 'get_${field.name}';
+						// Create helper fields for this instance class.
+						var newFields = (macro class {
+							// Cache the dom element.
+							@:isVar public var $domName(get, null):dtx.DOMNode;
+							
+							public function $setter(v:$t) {
+								$i { name } = v; 
+								$call( v, $i { domName }, $e{ setterExpr( type ) }, $v { attribute? attName :null } );
+								return v;
+							}
+							
+							public function $getter() {
+								if ($i { domName } == null) {
+									$i { domName } = dtx.collection.Traversing.find(temDom, '[$attName]').getNode();
+								}
+								return $i { domName };
+							}
+						}).fields;
+						
+						// Insert helper fields into current instance class.
+						for (newField in newFields) {
+							newField.meta = [];
+							fields.push( newField );
 						}
-						return $i { domName };
-					} ) );
+						
+					} else {
+						
+						switch (e.expr) {
+							// Find constant values and insert them directly into the dom.
+							case EConst(CInt(v)), EConst(CFloat(v)), EConst(CString(v)): 
+								if (attribute) {
+									ele.setAttr( attName, '$v' );
+								} else {
+									ele.setText( '$v' );
+								}
+								
+							case _:
+						}
+						
+					}
 					
 				case _:
 					
@@ -238,6 +270,14 @@ class Parser {
 	
 	public static inline function processAttr(name:String, ele:DOMNode) {
 		processDOM( name, ele, true );
+	}
+	
+	private static function params(type:Type):Array<Type> return switch (type) {
+		case TInst(_, p): p;
+		case TEnum(_, p): p;
+		case TType(_, p): p;
+		case TAbstract(_, p): p;
+		case _: [];
 	}
 	#else
 	public static function processDOM(name:String, ele:DOMNode, attribute:Bool = false) {

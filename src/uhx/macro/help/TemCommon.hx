@@ -3,6 +3,7 @@ package uhx.macro.help;
 import haxe.macro.Type;
 import haxe.macro.Expr;
 import haxe.macro.Context;
+import uhx.tem.Parser;
 
 using uhu.macro.Jumla;
 using haxe.macro.Context;
@@ -18,41 +19,20 @@ class TemCommon {
 	public static var TemPlateFields:Array<Field> = [];
 	public static var TemPlateCache:Map<String, Expr> = new Map<String, Expr>();
 	
-	public static var TemDOM(get, never):Field;
+	public static var TemClass(get, never):TypeDefinition;
 	
-	private static function get_TemDOM():Field {
-		return {
-			name: 'TemDOM',
-			access: [APublic],
-			kind: FVar( macro: dtx.DOMCollection, macro null ),
-			pos: Context.currentPos(),
-		};
-	}
-	
-	public static var TemSetup(get, never):Field;
-	
-	private static function get_TemSetup():Field {
-		return {
-			name: 'TemSetup',
-			access: [APrivate],
-			kind: FFun( {
-				args: [ {
-					name: 'fragment',
-					opt: false,
-					type: macro: dtx.DOMCollection
-				} ],
-				ret: macro: Void,
-				params: [],
-				expr: macro {
-					$i { TemCommon.TemDOM.name } = fragment;
-					uhx.tem.Parser.cls = $i { Context.getLocalClass().get().name };
-					uhx.tem.Parser.instance = this;
-					uhx.tem.Parser.fields = std.Type.getInstanceFields( uhx.tem.Parser.cls );
-					uhx.tem.Parser.process( fragment, $v { Context.getLocalClass().get().name } );
-				}
-			} ),
-			pos: Context.currentPos(),
-		};
+	private static function get_TemClass() return macro class TemHolder {
+		
+		public var temDom:dtx.DOMCollection = null;
+		
+		private function temSetup(fragment:dtx.DOMCollection):Void {
+			temDom = fragment;
+			uhx.tem.Parser.cls = $i { Context.getLocalClass().get().name };
+			uhx.tem.Parser.instance = this;
+			uhx.tem.Parser.fields = std.Type.getInstanceFields( uhx.tem.Parser.cls );
+			uhx.tem.Parser.process( fragment, $v { Context.getLocalClass().get().name } );
+		}
+		
 	}
 	
 	public static var tem(get, never):TypeDefinition;
