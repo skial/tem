@@ -1,18 +1,15 @@
 package uhx.macro;
 
 #if macro
-import byte.ByteData;
 import haxe.Json;
-import haxe.Utf8;
+import byte.ByteData;
 import sys.io.Process;
 import haxe.macro.Type;
 import haxe.macro.Expr;
-import uhx.lexer.MarkdownParser;
 import uhx.macro.KlasImp;
 import haxe.macro.Context;
 import haxe.macro.Compiler;
 import uhx.macro.help.TemCommon;
-import unifill.Utf32;
 #end
 
 import Detox;
@@ -52,7 +49,7 @@ class Tem {
 		}
 		
 		if (Context.defined('tuli')) {
-			uhx.macro.Tuli.registerPlugin('tem', processFiles, finish);
+			uhx.macro.Tuli.onExtension('html', function(f, c) return processFile(f.path, c), Before);
 		}
 		
 		files = [];
@@ -159,7 +156,47 @@ class Tem {
 			index++;
 		}
 		
-		processFiles(path, allItems);
+		//processFiles(path, allItems);
+		for (html in allItems.filter( function(s) return s.extension() == 'html' )) {
+			var location = '$path/$html'.normalize();
+			
+			// https://developer.mozilla.org/en-US/docs/Web/HTML/Element
+			// Use tidy html5 to force the html into valid xml so Detox
+			// on sys platforms can parse it.
+			var process = new Process('tidy', [
+				// Indent elements.
+				'-i', 
+				// Be quiet.
+				'-q', 
+				// Convert to xml.
+				'-asxml', 
+				// Force the doctype to valid html5
+				'--doctype', 'html5',
+				// Don't add the tidy html5 meta
+				'--tidy-mark', 'n',
+				// Keep empty elements and paragraphs.
+				'--drop-empty-elements', 'n',
+				'--drop-empty-paras', 'n', 
+				// Add missing block elements.
+				'--new-blocklevel-tags', 
+				'article aside audio canvas datalist figcaption figure footer ' +
+				'header hgroup output section video details element main menu ' +
+				'template shadow nav ruby source',
+				// Add missing inline elements.
+				'--new-inline-tags', 'bdi content data mark menuitem meter progress rp' +
+				'rt summary time',
+				// Add missing void elements.
+				'--new-empty-tags', 'keygen track wbr',
+				// Don't wrap partials in `<html>`, or `<body>` and don't add `<head>`.
+				'--show-body-only', 'auto', 
+				// Make the converted html easier to read.
+				'--vertical-space', 'y', location]);
+				
+			var content = process.stdout.readAll().toString();
+			
+			process.close();
+			processFile(html, content);
+		}
 		
 		// Recreate everything in `config.output` directory.
 		Context.onAfterGenerate( finish.bind( config.output ) );
@@ -169,12 +206,17 @@ class Tem {
 		TemMacro.output = path;
 	}
 	
-	private static function processFiles(path:String, files:Array<String>):Array<String> {
-		var filterHTML = function(s:String) return s.extension() == 'html';
+	private static function processFile(path:String, file:String):String {
+		var dom = file.parse();
+		htmlCache.set(path, dom);
+		if (dom.first().html().toLowerCase() != '<!doctype html>') {
+			isPartial.set(path, true);
+		}
+		return file;
+		//var filterHTML = function(s:String) return s.extension() == 'html';
 		
-		for (html in files.filter( filterHTML )) {
+		/*for (html in files.filter( filterHTML )) {
 			var location = '$path/$html'.normalize();
-			var content = location.getContent();
 			
 			// https://developer.mozilla.org/en-US/docs/Web/HTML/Element
 			// Use tidy html5 to force the html into valid xml so Detox
@@ -216,9 +258,9 @@ class Tem {
 			if (parsed.first().html().toLowerCase() != '<!doctype html>') {
 				isPartial.set(html, true);
 			}
-		}
+		}*/
 		
-		return files.filter( function(s) return !filterHTML(s) );
+		//return files.filter( function(s) return !filterHTML(s) );
 	}
 	
 	public static function finish(path:String) {
